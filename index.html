@@ -48,20 +48,32 @@
     <!-- Header -->
     <header class="bg-slate-900 text-white p-4 shrink-0 shadow-md z-10">
         <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
+            <div class="flex flex-col">
                 <h1 class="text-xl font-bold flex items-center gap-2">
                     <i class="fas fa-network-wired text-blue-400"></i>
                     Self-Attention & Embeddings
                 </h1>
                 <p class="text-xs text-slate-400 mt-1">
-                    Powered by <span class="text-yellow-400 font-mono">all-MiniLM-L6-v2</span> (in-browser)
+                    Running in-browser via Transformers.js
                 </p>
             </div>
             
-            <!-- Model Status Indicator -->
-            <div id="modelStatus" class="flex items-center gap-2 text-xs bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-                <div class="loader" id="loaderSpinner"></div>
-                <span id="statusText" class="text-slate-300">Loading AI Model...</span>
+            <div class="flex items-center gap-3">
+                <!-- Model Selector -->
+                <div class="flex flex-col items-end">
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Select AI Model</label>
+                    <select id="modelSelect" class="bg-slate-800 text-xs text-white border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+                        <option value="Xenova/bge-small-en-v1.5" selected>BGE-Small (Balanced & Better)</option>
+                        <option value="Xenova/all-mpnet-base-v2">MPNet-Base (High Accuracy / Slow)</option>
+                        <option value="Xenova/all-MiniLM-L6-v2">MiniLM-L6 (Fastest)</option>
+                    </select>
+                </div>
+
+                <!-- Model Status Indicator -->
+                <div id="modelStatus" class="flex items-center gap-2 text-xs bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 h-fit mt-5 md:mt-0">
+                    <div class="loader" id="loaderSpinner"></div>
+                    <span id="statusText" class="text-slate-300 whitespace-nowrap">Initializing...</span>
+                </div>
             </div>
         </div>
     </header>
@@ -181,7 +193,7 @@
                     </div>
                 </div>
 
-                <!-- NEW: Math / Equations Section -->
+                <!-- Math / Equations Section -->
                 <div class="bg-white rounded-lg border border-slate-200 overflow-hidden text-xs">
                     <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-600 flex items-center gap-2">
                         <i class="fas fa-calculator"></i>
@@ -246,6 +258,7 @@
             dragging: null,
             width: 0, height: 0, centerX: 0, centerY: 0,
             extractor: null,
+            currentModelName: 'Xenova/bge-small-en-v1.5', // Better default
             isModelReady: false,
             lastScore: 0
         };
@@ -269,7 +282,8 @@
             percentVal: document.getElementById('percentVal'),
             meaningLabel: document.getElementById('meaningLabel'),
             mathDotExp: document.getElementById('math-dot-exp'),
-            mathCosExp: document.getElementById('math-cos-exp')
+            mathCosExp: document.getElementById('math-cos-exp'),
+            modelSelect: document.getElementById('modelSelect')
         };
 
         // --- Initialization ---
@@ -287,34 +301,56 @@
             els.svg.addEventListener('touchend', handleEnd);
 
             els.calcBtn.addEventListener('click', computeEmbeddings);
+            
+            // Model Selector Logic
+            els.modelSelect.addEventListener('change', async (e) => {
+                state.currentModelName = e.target.value;
+                await loadModel(state.currentModelName);
+                computeEmbeddings(); // Auto re-calc on switch
+            });
 
-            // Load Model
+            // Initial Load
+            await loadModel(state.currentModelName);
+            
+            drawGrid();
+            render();
+            // Try initial compute if words are present
+            computeEmbeddings();
+        }
+
+        async function loadModel(modelName) {
+            state.isModelReady = false;
+            state.extractor = null; // Clear old
+            
+            els.status.innerText = "Downloading Model...";
+            els.status.className = "text-slate-300 whitespace-nowrap";
+            els.loader.style.display = "block";
+            els.modelStatus.classList.remove("border-emerald-700", "border-red-700");
+            els.modelStatus.classList.add("border-slate-700");
+            els.calcBtn.disabled = true;
+
             try {
-                els.status.innerText = "Downloading Model (20MB)...";
-                state.extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+                // Feature extraction pipeline
+                state.extractor = await pipeline('feature-extraction', modelName);
                 state.isModelReady = true;
                 
                 els.status.innerText = "Model Ready";
-                els.status.className = "text-emerald-400 font-bold";
+                els.status.className = "text-emerald-400 font-bold whitespace-nowrap";
                 els.loader.style.display = "none";
                 els.modelStatus.classList.replace("border-slate-700", "border-emerald-700");
-                
-                // Initial computation
-                computeEmbeddings();
+                els.calcBtn.disabled = false;
             } catch (err) {
                 console.error(err);
-                els.status.innerText = "Model Error (Check Console)";
-                els.status.className = "text-red-400";
+                els.status.innerText = "Load Failed";
+                els.status.className = "text-red-400 font-bold whitespace-nowrap";
                 els.loader.style.display = "none";
+                els.modelStatus.classList.replace("border-slate-700", "border-red-700");
             }
-
-            drawGrid();
-            render();
         }
 
         // --- AI Logic ---
         async function computeEmbeddings() {
-            if (!state.isModelReady) return;
+            if (!state.isModelReady || !state.extractor) return;
 
             const txtA = els.wordA.value;
             const txtB = els.wordB.value;
@@ -330,7 +366,6 @@
                 const outB = await state.extractor(txtB, { pooling: 'mean', normalize: true });
 
                 // Calculate Cosine Similarity
-                // Since normalize: true is set, dot product == cosine similarity
                 const embA = outA.data;
                 const embB = outB.data;
                 
