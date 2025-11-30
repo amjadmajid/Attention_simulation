@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Self-Attention & Semantic Similarity</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            touch-action: none; /* Prevent scrolling on mobile while dragging */
+        }
+        .vector-handle {
+            cursor: pointer;
+            transition: r 0.2s, fill-opacity 0.2s;
+        }
+        .vector-handle:hover {
+            r: 14;
+            fill-opacity: 0.4;
+        }
+        .info-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        .info-panel::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+        /* Loading animation */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white p-4 shrink-0 shadow-md z-10">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold flex items-center gap-2">
+                    <i class="fas fa-network-wired text-blue-400"></i>
+                    Self-Attention & Embeddings
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">
+                    Powered by <span class="text-yellow-400 font-mono">all-MiniLM-L6-v2</span> (in-browser)
+                </p>
+            </div>
+            
+            <!-- Model Status Indicator -->
+            <div id="modelStatus" class="flex items-center gap-2 text-xs bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+                <div class="loader" id="loaderSpinner"></div>
+                <span id="statusText" class="text-slate-300">Loading AI Model...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-7xl mx-auto w-full">
+        
+        <!-- Left: Visualization Canvas -->
+        <div class="relative flex-1 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 h-[55vh] lg:h-auto">
+            
+            <!-- Controls Overlay -->
+            <div class="absolute top-4 left-4 z-10 flex flex-col gap-3 w-64">
+                
+                <!-- Word Input Card -->
+                <div class="bg-white/95 backdrop-blur border border-slate-300 shadow-md p-4 rounded-xl space-y-3">
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Semantic Input</h3>
+                    
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-8 bg-blue-500 rounded-l"></div>
+                        <input type="text" id="wordA" value="King" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500" placeholder="Query Word">
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-8 bg-red-500 rounded-l"></div>
+                        <input type="text" id="wordB" value="Queen" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-red-500" placeholder="Key Word">
+                    </div>
+
+                    <button id="calculateBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-2 rounded transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>Calculate Similarity</span>
+                        <i class="fas fa-bolt text-yellow-400"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SVG Canvas -->
+            <svg id="mainSvg" class="w-full h-full select-none cursor-crosshair">
+                <defs>
+                    <marker id="arrowA" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6" />
+                    </marker>
+                    <marker id="arrowB" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#ef4444" />
+                    </marker>
+                </defs>
+                <g id="gridLayer"></g>
+                <g id="axisLayer"></g>
+                <g id="vectorLayer"></g>
+            </svg>
+
+            <!-- Legend Overlay -->
+            <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-3 rounded-lg border border-slate-200 shadow-sm text-xs space-y-2 pointer-events-none">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span class="font-bold text-slate-700">Query Embedding</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span class="font-bold text-slate-700">Key Embedding</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Analysis Panel -->
+        <div class="w-full lg:w-96 bg-slate-50 flex flex-col border-t lg:border-t-0 info-panel overflow-y-auto h-[45vh] lg:h-auto z-20 shadow-lg lg:shadow-none">
+            
+            <div class="p-6 space-y-6">
+                
+                <!-- Score Card -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-red-500"></div>
+                    
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Cosine Similarity</h3>
+                    
+                    <!-- Dynamic Score Display -->
+                    <div class="flex items-end justify-center gap-2">
+                        <span id="scoreDisplay" class="text-5xl font-mono font-bold text-slate-800">0.00</span>
+                    </div>
+
+                    <div id="meaningLabel" class="mt-3 inline-block px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+                        Waiting for input...
+                    </div>
+                </div>
+
+                <!-- Explanation -->
+                <div class="space-y-3">
+                    <p class="text-xs text-slate-600 leading-relaxed bg-blue-50 p-3 rounded border border-blue-100">
+                        <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+                        <strong>Vectors Normalized:</strong> We are now using Cosine Similarity. The magnitude (length) of the vectors is ignored for the score, focusing purely on <em>directional alignment</em> (semantic meaning).
+                    </p>
+                </div>
+
+                <!-- Comparison Table -->
+                <div class="bg-white rounded-lg border border-slate-200 overflow-hidden text-xs">
+                    <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-600">
+                        Metrics
+                    </div>
+                    <div class="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
+                        <div class="p-3">
+                            <div class="text-slate-400 mb-1">Raw Dot Product</div>
+                            <div id="rawDotVal" class="font-mono font-bold text-slate-700">0.0</div>
+                        </div>
+                        <div class="p-3 bg-yellow-50">
+                            <div class="text-slate-400 mb-1">Cosine Sim</div>
+                            <div id="cosSimVal" class="font-mono font-bold text-slate-900">0.00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attention Bar -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-bold text-slate-600">Attention Weights (Softmax-like)</span>
+                        <span id="percentVal" class="text-slate-400">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div id="attentionBar" class="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- NEW: Math / Equations Section -->
+                <div class="bg-white rounded-lg border border-slate-200 overflow-hidden text-xs">
+                    <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-600 flex items-center gap-2">
+                        <i class="fas fa-calculator"></i>
+                        The Math Behind It
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <!-- Dot Product -->
+                        <div>
+                            <div class="font-bold text-slate-700 mb-1 flex justify-between">
+                                <span>1. What is Dot Product?</span>
+                                <span class="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">Raw Score</span>
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded border border-slate-200 font-mono text-center text-slate-600 mb-1">
+                                <div class="mb-1 border-b border-slate-200 pb-1 text-[10px] text-slate-400">Formula: A · B = ∑ (a<sub>i</sub> × b<sub>i</sub>)</div>
+                                <div id="math-dot-exp" class="text-blue-600 break-all leading-relaxed"></div>
+                            </div>
+                            <p class="text-[10px] text-slate-500 leading-tight">
+                                Sum of products. Sensitive to direction & magnitude.
+                            </p>
+                        </div>
+
+                        <!-- Cosine Sim -->
+                        <div>
+                            <div class="font-bold text-slate-700 mb-1 flex justify-between">
+                                <span>2. What is Cosine Similarity?</span>
+                                <span class="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">Normalized</span>
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded border border-slate-200 font-mono text-center text-slate-600 mb-1">
+                                <div class="mb-1 border-b border-slate-200 pb-1 text-[10px] text-slate-400">Formula: (A · B) / (||A|| × ||B||)</div>
+                                <div id="math-cos-exp" class="text-emerald-600 break-all leading-relaxed"></div>
+                            </div>
+                            <p class="text-[10px] text-slate-500 leading-tight">
+                                Normalized by vector lengths. Pure angle alignment.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Import Transformers.js as a module -->
+    <script type="module">
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.14.0';
+
+        // Skip local model checks since we are using CDN
+        env.allowLocalModels = false;
+        env.useBrowserCache = true;
+
+        // --- Configuration ---
+        const CONFIG = {
+            gridSize: 40,
+            colors: { A: '#3b82f6', B: '#ef4444', Proj: '#8b5cf6', Grid: '#e2e8f0', Axis: '#94a3b8' },
+            fixedMag: 140 // Fixed visual magnitude for normalized view
+        };
+
+        // --- State ---
+        let state = {
+            vecA: { x: 100, y: 100 },
+            vecB: { x: 100, y: 100 },
+            dragging: null,
+            width: 0, height: 0, centerX: 0, centerY: 0,
+            extractor: null,
+            isModelReady: false,
+            lastScore: 0
+        };
+
+        // --- DOM Elements ---
+        const els = {
+            svg: document.getElementById('mainSvg'),
+            gridLayer: document.getElementById('gridLayer'),
+            axisLayer: document.getElementById('axisLayer'),
+            vectorLayer: document.getElementById('vectorLayer'),
+            wordA: document.getElementById('wordA'),
+            wordB: document.getElementById('wordB'),
+            calcBtn: document.getElementById('calculateBtn'),
+            status: document.getElementById('statusText'),
+            loader: document.getElementById('loaderSpinner'),
+            modelStatus: document.getElementById('modelStatus'),
+            scoreDisplay: document.getElementById('scoreDisplay'),
+            rawDotVal: document.getElementById('rawDotVal'),
+            cosSimVal: document.getElementById('cosSimVal'),
+            attentionBar: document.getElementById('attentionBar'),
+            percentVal: document.getElementById('percentVal'),
+            meaningLabel: document.getElementById('meaningLabel'),
+            mathDotExp: document.getElementById('math-dot-exp'),
+            mathCosExp: document.getElementById('math-cos-exp')
+        };
+
+        // --- Initialization ---
+        async function init() {
+            handleResize();
+            window.addEventListener('resize', handleResize);
+            
+            // Interaction
+            els.svg.addEventListener('mousedown', handleStart);
+            els.svg.addEventListener('mousemove', handleMove);
+            els.svg.addEventListener('mouseup', handleEnd);
+            els.svg.addEventListener('mouseleave', handleEnd);
+            els.svg.addEventListener('touchstart', handleStart, {passive: false});
+            els.svg.addEventListener('touchmove', handleMove, {passive: false});
+            els.svg.addEventListener('touchend', handleEnd);
+
+            els.calcBtn.addEventListener('click', computeEmbeddings);
+
+            // Load Model
+            try {
+                els.status.innerText = "Downloading Model (20MB)...";
+                state.extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+                state.isModelReady = true;
+                
+                els.status.innerText = "Model Ready";
+                els.status.className = "text-emerald-400 font-bold";
+                els.loader.style.display = "none";
+                els.modelStatus.classList.replace("border-slate-700", "border-emerald-700");
+                
+                // Initial computation
+                computeEmbeddings();
+            } catch (err) {
+                console.error(err);
+                els.status.innerText = "Model Error (Check Console)";
+                els.status.className = "text-red-400";
+                els.loader.style.display = "none";
+            }
+
+            drawGrid();
+            render();
+        }
+
+        // --- AI Logic ---
+        async function computeEmbeddings() {
+            if (!state.isModelReady) return;
+
+            const txtA = els.wordA.value;
+            const txtB = els.wordB.value;
+
+            if (!txtA || !txtB) return;
+
+            els.calcBtn.disabled = true;
+            els.calcBtn.innerHTML = `<div class="loader" style="width:12px;height:12px;border-width:2px;"></div> Processing...`;
+
+            try {
+                // Get Embeddings (Tensor)
+                const outA = await state.extractor(txtA, { pooling: 'mean', normalize: true });
+                const outB = await state.extractor(txtB, { pooling: 'mean', normalize: true });
+
+                // Calculate Cosine Similarity
+                // Since normalize: true is set, dot product == cosine similarity
+                const embA = outA.data;
+                const embB = outB.data;
+                
+                let dot = 0;
+                for(let i = 0; i < embA.length; i++) {
+                    dot += embA[i] * embB[i];
+                }
+
+                state.lastScore = dot;
+                updateVectorsFromScore(dot);
+                
+            } catch (e) {
+                console.error("Embedding Error", e);
+            }
+
+            els.calcBtn.disabled = false;
+            els.calcBtn.innerHTML = `<span>Calculate Similarity</span><i class="fas fa-bolt text-yellow-400"></i>`;
+        }
+
+        function updateVectorsFromScore(similarity) {
+            // Map the high-dim similarity to 2D angle
+            // Similarity = Cos(theta) -> theta = acos(Similarity)
+            
+            // Clamp for safety
+            const simClamped = Math.max(-1, Math.min(1, similarity));
+            const angleRad = Math.acos(simClamped);
+
+            // We set coordinates directly based on standard unit circle, 
+            // then render handles the coordinate flip.
+            
+            state.vecA = {
+                x: CONFIG.fixedMag * Math.cos(Math.PI/4),
+                y: CONFIG.fixedMag * Math.sin(Math.PI/4)
+            };
+            
+            state.vecB = {
+                x: CONFIG.fixedMag * Math.cos(Math.PI/4 - angleRad),
+                y: CONFIG.fixedMag * Math.sin(Math.PI/4 - angleRad)
+            };
+
+            render();
+        }
+
+        // --- Math Helpers ---
+        function getDotProduct(v1, v2) { return v1.x * v2.x + v1.y * v2.y; }
+        function getMagnitude(v) { return Math.sqrt(v.x * v.x + v.y * v.y); }
+        function getCosSim(v1, v2) {
+            const m1 = getMagnitude(v1);
+            const m2 = getMagnitude(v2);
+            if (m1 === 0 || m2 === 0) return 0;
+            return getDotProduct(v1, v2) / (m1 * m2);
+        }
+
+        // --- Render ---
+        function handleResize() {
+            const rect = els.svg.getBoundingClientRect();
+            state.width = rect.width;
+            state.height = rect.height;
+            state.centerX = rect.width / 2;
+            state.centerY = rect.height / 2;
+            drawGrid();
+            render();
+        }
+
+        function toSVG(x, y) {
+            return { x: state.centerX + x, y: state.centerY - y };
+        }
+
+        function fromSVG(clientX, clientY) {
+            const rect = els.svg.getBoundingClientRect();
+            return {
+                x: clientX - rect.left - state.centerX,
+                y: -(clientY - rect.top - state.centerY)
+            };
+        }
+
+        function drawGrid() {
+            let content = '';
+            const { width: w, height: h, centerX: cx, centerY: cy } = state;
+            const gs = CONFIG.gridSize;
+
+            for (let x = cx % gs; x < w; x += gs) content += `<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="${CONFIG.colors.Grid}" stroke-width="1" />`;
+            for (let y = cy % gs; y < h; y += gs) content += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${CONFIG.colors.Grid}" stroke-width="1" />`;
+            
+            els.gridLayer.innerHTML = content;
+            els.axisLayer.innerHTML = `
+                <line x1="0" y1="${cy}" x2="${w}" y2="${cy}" stroke="${CONFIG.colors.Axis}" stroke-width="2" />
+                <line x1="${cx}" y1="0" x2="${cx}" y2="${h}" stroke="${CONFIG.colors.Axis}" stroke-width="2" />
+            `;
+        }
+
+        function render() {
+            const { vecA, vecB, centerX, centerY } = state;
+            const svgA = toSVG(vecA.x, vecA.y);
+            const svgB = toSVG(vecB.x, vecB.y);
+            const origin = { x: centerX, y: centerY };
+
+            const dot = getDotProduct(vecA, vecB);
+            const cosSim = getCosSim(vecA, vecB);
+
+            // Projection
+            const magB_sq = vecB.x * vecB.x + vecB.y * vecB.y;
+            let projX = 0, projY = 0;
+            if (magB_sq > 0) {
+                const scalar = dot / magB_sq;
+                projX = scalar * vecB.x;
+                projY = scalar * vecB.y;
+            }
+            const svgProj = toSVG(projX, projY);
+
+            // SVG Content
+            let content = '';
+            
+            // Projection Line
+            content += `<line x1="${origin.x}" y1="${origin.y}" x2="${svgProj.x}" y2="${svgProj.y}" stroke="${CONFIG.colors.Proj}" stroke-width="4" opacity="0.3" />`;
+            content += `<line x1="${svgA.x}" y1="${svgA.y}" x2="${svgProj.x}" y2="${svgProj.y}" stroke="${CONFIG.colors.Proj}" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.6" />`;
+
+            // Vectors
+            content += `<line x1="${origin.x}" y1="${origin.y}" x2="${svgB.x}" y2="${svgB.y}" stroke="${CONFIG.colors.B}" stroke-width="3" marker-end="url(#arrowB)" />`;
+            content += `<line x1="${origin.x}" y1="${origin.y}" x2="${svgA.x}" y2="${svgA.y}" stroke="${CONFIG.colors.A}" stroke-width="3" marker-end="url(#arrowA)" />`;
+
+            // Handles
+            content += `<circle cx="${svgB.x}" cy="${svgB.y}" r="12" fill="${CONFIG.colors.B}" fill-opacity="0.1" stroke="${CONFIG.colors.B}" stroke-width="2" class="vector-handle" data-id="B" />`;
+            content += `<text x="${svgB.x + 15}" y="${svgB.y}" fill="${CONFIG.colors.B}" font-weight="bold" font-size="14" pointer-events="none">K</text>`;
+
+            content += `<circle cx="${svgA.x}" cy="${svgA.y}" r="12" fill="${CONFIG.colors.A}" fill-opacity="0.1" stroke="${CONFIG.colors.A}" stroke-width="2" class="vector-handle" data-id="A" />`;
+            content += `<text x="${svgA.x + 15}" y="${svgA.y}" fill="${CONFIG.colors.A}" font-weight="bold" font-size="14" pointer-events="none">Q</text>`;
+
+            els.vectorLayer.innerHTML = content;
+            updateStats(dot, cosSim);
+        }
+
+        function updateStats(dot, cosSim) {
+            els.scoreDisplay.textContent = cosSim.toFixed(2);
+            els.rawDotVal.textContent = dot.toFixed(0);
+            els.cosSimVal.textContent = cosSim.toFixed(3);
+
+            // Color Coding
+            if (cosSim > 0.1) els.scoreDisplay.className = "text-5xl font-mono font-bold text-emerald-600 transition-colors";
+            else if (cosSim < -0.1) els.scoreDisplay.className = "text-5xl font-mono font-bold text-rose-600 transition-colors";
+            else els.scoreDisplay.className = "text-5xl font-mono font-bold text-slate-400 transition-colors";
+
+            // Bar Width
+            const p = Math.max(0, cosSim * 100);
+            els.attentionBar.style.width = `${p}%`;
+            els.percentVal.textContent = `${p.toFixed(0)}%`;
+
+            // Meaning Labels
+            let label = "Neutral";
+            let color = "bg-slate-100 text-slate-500";
+            
+            if (cosSim > 0.8) { label = "Very Similar"; color = "bg-emerald-100 text-emerald-700"; }
+            else if (cosSim > 0.5) { label = "Related"; color = "bg-green-50 text-green-600"; }
+            else if (cosSim > 0.2) { label = "Somewhat Related"; color = "bg-blue-50 text-blue-600"; }
+            else if (cosSim > -0.2) { label = "Unrelated"; color = "bg-slate-100 text-slate-500"; }
+            else { label = "Opposite/Different"; color = "bg-rose-100 text-rose-700"; }
+
+            els.meaningLabel.textContent = label;
+            els.meaningLabel.className = `mt-3 inline-block px-3 py-1 rounded-full text-xs font-bold transition-all duration-300 ${color}`;
+
+            // --- Update Dynamic Math Strings ---
+            const vA = state.vecA;
+            const vB = state.vecB;
+            const magA = getMagnitude(vA);
+            const magB = getMagnitude(vB);
+
+            // Dot Product String
+            // (Ax * Bx) + (Ay * By)
+            const dotStr = `(${vA.x.toFixed(0)} × ${vB.x.toFixed(0)}) + (${vA.y.toFixed(0)} × ${vB.y.toFixed(0)}) = ${dot.toFixed(0)}`;
+            els.mathDotExp.textContent = dotStr;
+
+            // Cosine Sim String
+            // Dot / (|A| * |B|)
+            const cosStr = `${dot.toFixed(0)} / (${magA.toFixed(0)} × ${magB.toFixed(0)}) = ${cosSim.toFixed(3)}`;
+            els.mathCosExp.textContent = cosStr;
+        }
+
+        // --- Interaction ---
+        function handleStart(e) {
+            const target = e.target;
+            if (target.classList.contains('vector-handle')) {
+                e.preventDefault();
+                state.dragging = target.getAttribute('data-id');
+            }
+        }
+
+        function handleMove(e) {
+            if (!state.dragging) return;
+            e.preventDefault();
+
+            let cx, cy;
+            if (e.touches) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+            else { cx = e.clientX; cy = e.clientY; }
+
+            const pos = fromSVG(cx, cy);
+
+            // Manual Override: Allow dragging, but calculate resulting similarity based on angle
+            if (state.dragging === 'A') state.vecA = pos;
+            else if (state.dragging === 'B') state.vecB = pos;
+
+            render();
+        }
+
+        function handleEnd() { state.dragging = null; }
+
+        init();
+    </script>
+</body>
+</html>
