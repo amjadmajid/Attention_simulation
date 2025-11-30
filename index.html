@@ -105,6 +105,12 @@
                         <span>Calculate Similarity</span>
                         <i class="fas fa-bolt text-yellow-400"></i>
                     </button>
+                    
+                    <div class="text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-200">
+                        <strong>Note:</strong> Projecting 384 dimensions into 2D. 
+                        <br><br>
+                        The <em>relative angle</em> is fixed to match the calculated similarity, but the absolute position includes randomness to separate distinct words.
+                    </div>
                 </div>
             </div>
 
@@ -161,7 +167,7 @@
                 <div class="space-y-3">
                     <p class="text-xs text-slate-600 leading-relaxed bg-blue-50 p-3 rounded border border-blue-100">
                         <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-                        <strong>Vectors Normalized:</strong> We are now using Cosine Similarity. The magnitude (length) of the vectors is ignored for the score, focusing purely on <em>directional alignment</em> (semantic meaning).
+                        <strong>Vectors Normalized:</strong> We are using Cosine Similarity. The magnitude (length) of the vectors is ignored for the score, focusing purely on <em>directional alignment</em> (semantic meaning).
                     </p>
                 </div>
 
@@ -248,7 +254,7 @@
         const CONFIG = {
             gridSize: 40,
             colors: { A: '#3b82f6', B: '#ef4444', Proj: '#8b5cf6', Grid: '#e2e8f0', Axis: '#94a3b8' },
-            fixedMag: 140 // Fixed visual magnitude for normalized view
+            fixedMag: 140 // Restored to fixed visual magnitude
         };
 
         // --- State ---
@@ -365,7 +371,6 @@
                 const outA = await state.extractor(txtA, { pooling: 'mean', normalize: true });
                 const outB = await state.extractor(txtB, { pooling: 'mean', normalize: true });
 
-                // Calculate Cosine Similarity
                 const embA = outA.data;
                 const embB = outB.data;
                 
@@ -393,17 +398,29 @@
             const simClamped = Math.max(-1, Math.min(1, similarity));
             const angleRad = Math.acos(simClamped);
 
+            // Generate dynamic base angle for Query vector based on text
+            // This prevents the coordinates from looking "hardcoded" to 99
+            const txtA = els.wordA.value || "default";
+            let hash = 0;
+            for (let i = 0; i < txtA.length; i++) {
+                hash = ((hash << 5) - hash) + txtA.charCodeAt(i);
+                hash |= 0;
+            }
+            // Map hash to range [20, 80] degrees (keep it in first quadrant for cleaner math display usually)
+            const norm = (Math.abs(hash) % 100) / 100;
+            const baseAngle = (15 + (norm * 65)) * (Math.PI / 180); // 15 to 80 degrees
+
             // We set coordinates directly based on standard unit circle, 
             // then render handles the coordinate flip.
             
             state.vecA = {
-                x: CONFIG.fixedMag * Math.cos(Math.PI/4),
-                y: CONFIG.fixedMag * Math.sin(Math.PI/4)
+                x: CONFIG.fixedMag * Math.cos(baseAngle),
+                y: CONFIG.fixedMag * Math.sin(baseAngle)
             };
             
             state.vecB = {
-                x: CONFIG.fixedMag * Math.cos(Math.PI/4 - angleRad),
-                y: CONFIG.fixedMag * Math.sin(Math.PI/4 - angleRad)
+                x: CONFIG.fixedMag * Math.cos(baseAngle - angleRad),
+                y: CONFIG.fixedMag * Math.sin(baseAngle - angleRad)
             };
 
             render();
