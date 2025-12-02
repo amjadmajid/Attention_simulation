@@ -107,10 +107,9 @@
                     </button>
                     
                     <div class="text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-200">
-                        <strong>Note:</strong> We take the full embedding vector (e.g. 384 dimensions)
-                        from the model and project it into 2D with a fixed random linear projection.
-                        Angles and distances in the picture are an approximation of the original
-                        high-dimensional geometry.
+                        <strong>Note:</strong> We compute cosine similarity in the full embedding space,
+                        then project both vectors onto the 2D plane that they span. The angle you see
+                        between Q and K is exactly the same as in the original high-dimensional space.
                     </div>
                 </div>
             </div>
@@ -134,11 +133,11 @@
             <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-3 rounded-lg border border-slate-200 shadow-sm text-xs space-y-2 pointer-events-none">
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span class="font-bold text-slate-700">Query Embedding</span>
+                    <span class="font-bold text-slate-700">Query Embedding (Q)</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span class="font-bold text-slate-700">Key Embedding</span>
+                    <span class="font-bold text-slate-700">Key Embedding (K)</span>
                 </div>
             </div>
         </div>
@@ -152,7 +151,7 @@
                 <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-center relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-red-500"></div>
                     
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Cosine Similarity (2D projection)</h3>
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Cosine Similarity (Embedding Space)</h3>
                     
                     <!-- Dynamic Score Display -->
                     <div class="flex items-end justify-center gap-2">
@@ -168,21 +167,21 @@
                 <div class="space-y-3">
                     <p class="text-xs text-slate-600 leading-relaxed bg-blue-50 p-3 rounded border border-blue-100">
                         <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-                        <strong>Vectors Normalized in Embedding Space:</strong> The model returns
-                        high-dimensional embeddings which we project into 2D. The cosine similarity
-                        shown here is computed on the projected vectors, so it’s an intuitive
-                        geometric approximation of the true embedding similarity.
+                        <strong>How the picture is built:</strong> the model returns high-dimensional
+                        embeddings. We compute their cosine similarity there, then project both vectors
+                        onto the 2D plane spanned by them. This preserves their angle exactly, so what
+                        you see is a faithful geometric view of that pair of embeddings.
                     </p>
                 </div>
 
                 <!-- Comparison Table -->
                 <div class="bg-white rounded-lg border border-slate-200 overflow-hidden text-xs">
                     <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-600">
-                        Metrics (2D Projection)
+                        Metrics (2D View, Angle Preserved)
                     </div>
                     <div class="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                         <div class="p-3">
-                            <div class="text-slate-400 mb-1">Raw Dot Product</div>
+                            <div class="text-slate-400 mb-1">Raw Dot Product (2D)</div>
                             <div id="rawDotVal" class="font-mono font-bold text-slate-700">0.0</div>
                         </div>
                         <div class="p-3 bg-yellow-50">
@@ -195,7 +194,7 @@
                 <!-- Attention Bar -->
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span class="font-bold text-slate-600">Attention Weights (Softmax-like)</span>
+                        <span class="font-bold text-slate-600">Attention Weight (Softmax-like)</span>
                         <span id="percentVal" class="text-slate-400">0%</span>
                     </div>
                     <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
@@ -207,36 +206,41 @@
                 <div class="bg-white rounded-lg border border-slate-200 overflow-hidden text-xs">
                     <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-600 flex items-center gap-2">
                         <i class="fas fa-calculator"></i>
-                        The Math Behind the 2D View
+                        The Math in the 2D Plane
                     </div>
                     <div class="p-4 space-y-4">
                         <!-- Dot Product -->
                         <div>
                             <div class="font-bold text-slate-700 mb-1 flex justify-between">
-                                <span>1. What is Dot Product?</span>
+                                <span>1. Dot Product in 2D</span>
                                 <span class="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">Raw Score</span>
                             </div>
                             <div class="bg-slate-50 p-2 rounded border border-slate-200 font-mono text-center text-slate-600 mb-1">
-                                <div class="mb-1 border-b border-slate-200 pb-1 text-[10px] text-slate-400">Formula (2D): A · B = (Ax × Bx) + (Ay × By)</div>
+                                <div class="mb-1 border-b border-slate-200 pb-1 text-[10px] text-slate-400">
+                                    Formula (2D): A · B = (Ax × Bx) + (Ay × By)
+                                </div>
                                 <div id="math-dot-exp" class="text-blue-600 break-all leading-relaxed"></div>
                             </div>
                             <p class="text-[10px] text-slate-500 leading-tight">
-                                Sum of products of components in the 2D projection plane.
+                                Dot product of the projected vectors in the 2D plane.
                             </p>
                         </div>
 
                         <!-- Cosine Sim -->
                         <div>
                             <div class="font-bold text-slate-700 mb-1 flex justify-between">
-                                <span>2. What is Cosine Similarity?</span>
+                                <span>2. Cosine Similarity in 2D</span>
                                 <span class="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">Normalized</span>
                             </div>
                             <div class="bg-slate-50 p-2 rounded border border-slate-200 font-mono text-center text-slate-600 mb-1">
-                                <div class="mb-1 border-b border-slate-200 pb-1 text-[10px] text-slate-400">Formula (2D): (A · B) / (||A|| × ||B||)</div>
+                                <div class="mb-1 border-b border-slate-200 pb-1 text-[10px] text-slate-400">
+                                    Formula (2D): (A · B) / (||A|| × ||B||)
+                                </div>
                                 <div id="math-cos-exp" class="text-emerald-600 break-all leading-relaxed"></div>
                             </div>
                             <p class="text-[10px] text-slate-500 leading-tight">
-                                Normalized dot product of the projected vectors—captures their angle in 2D.
+                                Because we project onto their own plane, this cosine equals the cosine
+                                in the original embedding space.
                             </p>
                         </div>
                     </div>
@@ -258,22 +262,22 @@
         const CONFIG = {
             gridSize: 40,
             colors: { A: '#3b82f6', B: '#ef4444', Proj: '#8b5cf6', Grid: '#e2e8f0', Axis: '#94a3b8' },
-            fixedMag: 140 // Scale of the projected vectors for visualization
+            fixedMag: 180 // length of Q after projection (in pixels)
         };
 
         // --- State ---
         let state = {
-            vecA: { x: 100, y: 100 },
-            vecB: { x: 100, y: 100 },
+            vecA: { x: 0, y: 0 },
+            vecB: { x: 0, y: 0 },
             dragging: null,
-            width: 0, height: 0, centerX: 0, centerY: 0,
+            width: 0,
+            height: 0,
+            centerX: 0,
+            centerY: 0,
             extractor: null,
-            currentModelName: 'Xenova/bge-small-en-v1.5', // Default model
+            currentModelName: 'Xenova/bge-small-en-v1.5',
             isModelReady: false,
-            lastScore: 0,   // (optional) embedding-space cosine
-            embA: null,     // full embedding A (Float32Array)
-            embB: null,     // full embedding B
-            projBasis: null // [u1, u2] random orthonormal basis in embedding space
+            lastScore: 0
         };
 
         // --- DOM Elements ---
@@ -299,60 +303,62 @@
             modelSelect: document.getElementById('modelSelect')
         };
 
-        // --- High-dimensional → 2D projection (fixed random "camera") ---
-        function initProjection(dim) {
-            const randVec = () => {
-                const v = new Float32Array(dim);
-                for (let i = 0; i < dim; i++) v[i] = Math.random() - 0.5;
-                return v;
-            };
+        // --- Build 2D coordinates from high-dimensional embeddings ---
+        // We project onto the plane spanned by A and B, so angle is preserved exactly.
+        function buildProjectionFromPair(embA, embB) {
+            const dim = embA.length;
+            let dotAB = 0;
+            let normA2 = 0;
+            let normB2 = 0;
 
-            const normalize = (v) => {
-                let s = 0;
-                for (let i = 0; i < v.length; i++) s += v[i] * v[i];
-                s = Math.sqrt(s) || 1;
-                for (let i = 0; i < v.length; i++) v[i] /= s;
-                return v;
-            };
-
-            const dot1d = (a, b) => {
-                let s = 0;
-                for (let i = 0; i < a.length; i++) s += a[i] * b[i];
-                return s;
-            };
-
-            const u1 = normalize(randVec());
-            const u2raw = randVec();
-
-            // Gram–Schmidt: make u2 orthogonal to u1
-            const projOnU1 = dot1d(u2raw, u1);
-            for (let i = 0; i < u2raw.length; i++) {
-                u2raw[i] -= projOnU1 * u1[i];
-            }
-            const u2 = normalize(u2raw);
-
-            state.projBasis = [u1, u2];
-        }
-
-        function projectTo2D(emb) {
-            if (!emb) return { x: 0, y: 0 };
-
-            const dim = emb.length;
-            if (!state.projBasis || state.projBasis[0].length !== dim) {
-                initProjection(dim);
-            }
-
-            const [u1, u2] = state.projBasis;
-
-            let x = 0, y = 0;
             for (let i = 0; i < dim; i++) {
-                const v = emb[i];
-                x += v * u1[i];
-                y += v * u2[i];
+                const a = embA[i];
+                const b = embB[i];
+                dotAB += a * b;
+                normA2 += a * a;
+                normB2 += b * b;
             }
 
-            const scale = CONFIG.fixedMag;
-            return { x: x * scale, y: y * scale };
+            const normA = Math.sqrt(normA2) || 1e-6;
+            const normB = Math.sqrt(normB2) || 1e-6;
+            const cosSim = dotAB / (normA * normB);
+
+            // e1 = A / ||A||
+            const e1 = new Float32Array(dim);
+            for (let i = 0; i < dim; i++) {
+                e1[i] = embA[i] / normA;
+            }
+
+            // alpha = dot(B, e1)  (component of B along A)
+            let alpha = 0;
+            for (let i = 0; i < dim; i++) {
+                alpha += embB[i] * e1[i];
+            }
+
+            // residual = B - alpha * e1  (component of B orthogonal to A)
+            const residual = new Float32Array(dim);
+            let normRes2 = 0;
+            for (let i = 0; i < dim; i++) {
+                const r = embB[i] - alpha * e1[i];
+                residual[i] = r;
+                normRes2 += r * r;
+            }
+            const normRes = Math.sqrt(normRes2);
+
+            // Coordinates in this basis before scaling:
+            // A -> (||A||, 0)
+            // B -> (alpha, ||residual||)
+            const A2D = { x: normA, y: 0 };
+            const B2D = { x: alpha, y: normRes };
+
+            // Scale so that |A| becomes CONFIG.fixedMag
+            const scale = CONFIG.fixedMag / (normA || 1e-6);
+            A2D.x *= scale;
+            A2D.y *= scale;
+            B2D.x *= scale;
+            B2D.y *= scale;
+
+            return { A2D, B2D, cosSim };
         }
 
         // --- Initialization ---
@@ -365,8 +371,8 @@
             els.svg.addEventListener('mousemove', handleMove);
             els.svg.addEventListener('mouseup', handleEnd);
             els.svg.addEventListener('mouseleave', handleEnd);
-            els.svg.addEventListener('touchstart', handleStart, {passive: false});
-            els.svg.addEventListener('touchmove', handleMove, {passive: false});
+            els.svg.addEventListener('touchstart', handleStart, { passive: false });
+            els.svg.addEventListener('touchmove', handleMove, { passive: false });
             els.svg.addEventListener('touchend', handleEnd);
 
             els.calcBtn.addEventListener('click', computeEmbeddings);
@@ -383,13 +389,12 @@
             
             drawGrid();
             render();
-            // Try initial compute if words are present
             computeEmbeddings();
         }
 
         async function loadModel(modelName) {
             state.isModelReady = false;
-            state.extractor = null; // Clear old
+            state.extractor = null;
             
             els.status.innerText = "Downloading Model...";
             els.status.className = "text-slate-300 whitespace-nowrap";
@@ -399,7 +404,6 @@
             els.calcBtn.disabled = true;
 
             try {
-                // Feature extraction pipeline
                 state.extractor = await pipeline('feature-extraction', modelName);
                 state.isModelReady = true;
                 
@@ -417,7 +421,7 @@
             }
         }
 
-        // --- AI Logic: compute real embeddings and project them ---
+        // --- AI Logic: compute embeddings and project them ---
         async function computeEmbeddings() {
             if (!state.isModelReady || !state.extractor) return;
 
@@ -430,29 +434,19 @@
             els.calcBtn.innerHTML = `<div class="loader" style="width:12px;height:12px;border-width:2px;"></div> Processing...`;
 
             try {
-                // Get Embeddings (Tensor) – using normalized embeddings for cosine
+                // Normalized embeddings → cosine in embedding space is simply dot
                 const outA = await state.extractor(txtA, { pooling: 'mean', normalize: true });
                 const outB = await state.extractor(txtB, { pooling: 'mean', normalize: true });
 
                 const embA = outA.data;
                 const embB = outB.data;
 
-                // Save full vectors from the LLM
-                state.embA = embA;
-                state.embB = embB;
+                const { A2D, B2D, cosSim } = buildProjectionFromPair(embA, embB);
 
-                // In this normalized setting, dot ≈ true cosine similarity in embedding space
-                let dot = 0;
-                for (let i = 0; i < embA.length; i++) {
-                    dot += embA[i] * embB[i];
-                }
-                state.lastScore = dot;
+                state.vecA = A2D;
+                state.vecB = B2D;
+                state.lastScore = cosSim;
 
-                // Project the real embeddings into 2D for display
-                state.vecA = projectTo2D(embA);
-                state.vecB = projectTo2D(embB);
-
-                // Re-render canvas + metrics for 2D projection
                 render();
             } catch (e) {
                 console.error("Embedding Error", e);
@@ -557,7 +551,7 @@
 
         function updateStats(dot2D, cosSim2D) {
             els.scoreDisplay.textContent = cosSim2D.toFixed(2);
-            els.rawDotVal.textContent = dot2D.toFixed(0);
+            els.rawDotVal.textContent = dot2D.toFixed(1);
             els.cosSimVal.textContent = cosSim2D.toFixed(3);
 
             // Color Coding
@@ -565,8 +559,8 @@
             else if (cosSim2D < -0.1) els.scoreDisplay.className = "text-5xl font-mono font-bold text-rose-600 transition-colors";
             else els.scoreDisplay.className = "text-5xl font-mono font-bold text-slate-400 transition-colors";
 
-            // Bar Width
-            const p = Math.max(0, cosSim2D * 100);
+            // Bar Width (only positive similarity gets "attention")
+            const p = Math.max(0, cosSim2D) * 100;
             els.attentionBar.style.width = `${p}%`;
             els.percentVal.textContent = `${p.toFixed(0)}%`;
 
@@ -583,22 +577,20 @@
             els.meaningLabel.textContent = label;
             els.meaningLabel.className = `mt-3 inline-block px-3 py-1 rounded-full text-xs font-bold transition-all duration-300 ${color}`;
 
-            // --- Update Dynamic Math Strings for 2D view ---
+            // Update math strings for 2D coordinates
             const vA = state.vecA;
             const vB = state.vecB;
             const magA = getMagnitude(vA);
             const magB = getMagnitude(vB);
 
-            // Dot Product String (2D)
-            const dotStr = `(${vA.x.toFixed(0)} × ${vB.x.toFixed(0)}) + (${vA.y.toFixed(0)} × ${vB.y.toFixed(0)}) = ${dot2D.toFixed(0)}`;
+            const dotStr = `(${vA.x.toFixed(1)} × ${vB.x.toFixed(1)}) + (${vA.y.toFixed(1)} × ${vB.y.toFixed(1)}) = ${dot2D.toFixed(1)}`;
             els.mathDotExp.textContent = dotStr;
 
-            // Cosine Sim String (2D)
-            const cosStr = `${dot2D.toFixed(0)} / (${magA.toFixed(0)} × ${magB.toFixed(0)}) = ${cosSim2D.toFixed(3)}`;
+            const cosStr = `${dot2D.toFixed(1)} / (${magA.toFixed(1)} × ${magB.toFixed(1)}) = ${cosSim2D.toFixed(3)}`;
             els.mathCosExp.textContent = cosStr;
         }
 
-        // --- Interaction ---
+        // --- Interaction (still allows dragging, but now just manipulates 2D view) ---
         function handleStart(e) {
             const target = e.target;
             if (target.classList.contains('vector-handle')) {
@@ -617,7 +609,6 @@
 
             const pos = fromSVG(cx, cy);
 
-            // Manual Override: Allow dragging in projected 2D space
             if (state.dragging === 'A') state.vecA = pos;
             else if (state.dragging === 'B') state.vecB = pos;
 
