@@ -246,6 +246,32 @@
                     </div>
                 </div>
 
+                <!-- NEW: Embedding preview -->
+                <div class="bg-white rounded-lg border border-slate-200 overflow-hidden text-xs">
+                    <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-600 flex items-center gap-2">
+                        <i class="fas fa-list-ol"></i>
+                        Embedding Components (Preview)
+                    </div>
+                    <div class="p-4 space-y-3 font-mono text-[10px] leading-relaxed">
+                        <div>
+                            <div class="font-bold text-slate-500 mb-1">Q embedding (first 5 … last 5)</div>
+                            <div id="embAValues" class="bg-slate-50 border border-slate-200 rounded px-2 py-1 break-all text-slate-700">
+                                –
+                            </div>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-500 mb-1">K embedding (first 5 … last 5)</div>
+                            <div id="embBValues" class="bg-slate-50 border border-slate-200 rounded px-2 py-1 break-all text-slate-700">
+                                –
+                            </div>
+                        </div>
+                        <p class="text-[9px] text-slate-400 mt-1">
+                            Values are from the normalized embedding returned by the model
+                            (typically dimension 384–768 depending on the selected model).
+                        </p>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>
@@ -277,7 +303,9 @@
             extractor: null,
             currentModelName: 'Xenova/bge-small-en-v1.5',
             isModelReady: false,
-            lastScore: 0
+            lastScore: 0,
+            embA: null,
+            embB: null
         };
 
         // --- DOM Elements ---
@@ -300,7 +328,9 @@
             meaningLabel: document.getElementById('meaningLabel'),
             mathDotExp: document.getElementById('math-dot-exp'),
             mathCosExp: document.getElementById('math-cos-exp'),
-            modelSelect: document.getElementById('modelSelect')
+            modelSelect: document.getElementById('modelSelect'),
+            embAValues: document.getElementById('embAValues'),
+            embBValues: document.getElementById('embBValues')
         };
 
         // --- Build 2D coordinates from high-dimensional embeddings ---
@@ -361,6 +391,27 @@
             return { A2D, B2D, cosSim };
         }
 
+        // --- Embedding preview formatting ---
+        function formatEmbeddingPreview(emb, maxItems = 5) {
+            if (!emb) return "–";
+            const n = emb.length || 0;
+            const first = Array.from(emb.slice(0, maxItems)).map(v => v.toFixed(3));
+            const last = Array.from(emb.slice(Math.max(n - maxItems, 0))).map(v => v.toFixed(3));
+
+            if (n <= maxItems * 2) {
+                // Short embedding (rare, but handle anyway)
+                const merged = Array.from(emb).map(v => v.toFixed(3));
+                return `[${merged.join(", ")}] (dim=${n})`;
+            }
+
+            return `[${first.join(", ")}, …, ${last.join(", ")}] (dim=${n})`;
+        }
+
+        function updateEmbeddingLists() {
+            els.embAValues.textContent = formatEmbeddingPreview(state.embA);
+            els.embBValues.textContent = formatEmbeddingPreview(state.embB);
+        }
+
         // --- Initialization ---
         async function init() {
             handleResize();
@@ -389,6 +440,7 @@
             
             drawGrid();
             render();
+            updateEmbeddingLists();
             computeEmbeddings();
         }
 
@@ -440,6 +492,10 @@
 
                 const embA = outA.data;
                 const embB = outB.data;
+
+                state.embA = embA;
+                state.embB = embB;
+                updateEmbeddingLists();
 
                 const { A2D, B2D, cosSim } = buildProjectionFromPair(embA, embB);
 
